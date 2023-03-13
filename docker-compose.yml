@@ -1,0 +1,60 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:latest
+    container_name: training_ai_db
+    restart: always
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: password
+    ports:
+      - 5432:5432
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  ruby:
+    build: ./api_server
+    image: training_ai_ruby:latest
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: password
+      POSTGRES_HOST: db
+    volumes:
+      - ./api_server:/app
+      - gem_data:/usr/local/bundle
+    stdin_open: true
+
+  rails:
+    image: training_ai_ruby:latest
+    container_name: training_ai_rails
+    command: sh -c "rm -f tmp/pids/server.pid && bundle install && bundle exec rails s -p 3000 -b '0.0.0.0'"
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: password
+      POSTGRES_HOST: db
+    env_file:
+      - .env.rails.local
+    volumes:
+      - ./api_server:/app
+      - gem_data:/usr/local/bundle
+    tty: true
+    stdin_open: true
+    ports:
+      - "3000:3000"
+    depends_on:
+      ruby:
+        condition: service_started
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres:
+  next:
+  gem_data:
